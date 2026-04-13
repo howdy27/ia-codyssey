@@ -1,11 +1,11 @@
 # 🚀 개발 워크스테이션 구축 미션
 
 ## 1. 프로젝트 개요
-- 본 프로젝트는 터미널, Docker, Git 환경을 구축하고 컨테이너 기반 웹 서비스를 배포하는 것을 목표로 합니다.
+- 본 프로젝트는 터미널, Docker, Git 환경을 구축하고 이해하는 것을 목표로 합니다.
 
 ## 2. 실행 환경
 - OS: macOS (OrbStack 환경)
-- Shell: Zsh (또는 Bash)
+- Shell: Zsh
 - Docker 버전:Docker version 28.5.2
 - Git 버전:git version 2.50.1
 
