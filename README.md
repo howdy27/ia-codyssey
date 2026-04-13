@@ -88,7 +88,6 @@ howdy@gwonminhyeog-ui-MacBookPro howdy % chmod 655 mission-test
 howdy@gwonminhyeog-ui-MacBookPro howdy % cd mission-test 
 cd: permission denied: mission-test
 ```
-
 ### 4.2 Docker 설치 및 점검, 명령어 실습 로그
 
 1. 설치 및 버전 확인 명령어 실습
@@ -341,7 +340,14 @@ CONTAINER ID   IMAGE     COMMAND   CREATED   STATUS    PORTS     NAMES
 ```
 4. 기존 Dockerfile 기반 커스텀 이미지 제작
 
-my-custom-image 라는 디렉터리에 Dockerfile 이라는 텍스트 파일을 만듭니다.
+컨테이너와 이미지
+- 이미지: 서비스 실행에 필요한 환경을 고정해 둔 읽기 전용 템플릿.
+- 컨테이너: 이미지를 기반으로 격리된 환경에서 실행되는 프로세스. 호스트와 운영체제를 공유하며 외부에서 직접적인 접근이 불가능함.
+
+이미지는 베이스 이미지를 기반으로 읽기 전용 레이어를 쌓아가며 파일을 추가/수정/삭제하는데, 컨테이너를 생성할 때 읽기-쓰기 레이어가 그 위에 추가됩니다. 컨테이너 안에서의 변경사항은 이 '쓰기 계층' 안에서만 저장됩니다.
+
+Dockerfile을 기반으로 커스텀 이미지를 제작 해 보겠습니다.
+응집도를 높이기 위해 다른 프로젝트 파일들과 분리하여 my-custom-image 디렉터리를 따로 만들어 주었습니다. \ 이후 touch 명령어를 이용해 Dockerfile 을 생성해 주었습니다.
 ```
 howdy@gwonminhyeog-ui-MacBookPro my mission % mkdir my-custom-image
 howdy@gwonminhyeog-ui-MacBookPro my mission % cd my-custom-image
@@ -412,13 +418,17 @@ hello, everyone.
 ```
 
 [트러블 슈팅 #1. 이미지의 latest 태그 문제]
-문제: docker run my-image 명령어로 컨테이너를 실행하려고 했지만, "Unable to find image 'my-image:latest' locally" 라는 오류가 발생함.
-원인 가설: 이미지를 빌드할 때 v1 이라는 태그를 사용했으나, run 명령어에서는 따로 태그를 붙이지 않아 문제가 생김.
-확인: docker run my-image:v1 명령어로 실행하였을 때, 컨테이너가 정상적으로 실행됨.
-해결: 태그를 확실히 붙여 실행함.
+(문제): docker run my-image 명령어로 컨테이너를 실행하려고 했지만, "Unable to find image 'my-image:latest' locally" 라는 오류가 발생함.\
+(원인 가설): 이미지를 빌드할 때 v1 이라는 태그를 사용했으나, run 명령어에서는 따로 태그를 붙이지 않아 문제가 생김.\
+(확인): docker run my-image:v1 명령어로 실행하였을 때, 컨테이너가 정상적으로 실행됨.\
+(해결): 태그를 확실히 붙여 실행함.
 배운 점: 이미지를 빌드하거나 실행할 때 태그를 명시하지 않으면 자동으로 latest라는 태그를 붙여주지만 latest는 최신버전이라는 관용적 의미가 있을 뿐, 알아서 최신버전을 찾아 실행해주는 기능은 가지고있지 않다. 따라서 태그를 확실히 붙여야한다..
 
 ### 4-3. 포트매핑 및 접속 증거
+
+포트매핑이란?
+- 컨테이너는 내부 프라이빗 ip를 자동으로 할당받아 사용하므로, 외부와의 통신이 불가함.
+- 이러한 한계를 극복하기 위해 호스트의 포트와 컨테이너의 포트를 매핑하여, 외부에서 들어오는 트래픽을 컨테이너로 전달하는 기술.
 
 기존에 만들었던 my-image:v1 은 cat 명령어를 실행하고 바로 컨테이너가 종료되기 때문에, Nginx 가 포그라운드 프로세스로 유지될 수 있도록 Dockerfile 을 수정해 주었습니다.
 ```
@@ -455,24 +465,54 @@ howdy@gwonminhyeog-ui-MacBookPro my-custom-image % docker build -t my-image:v2 .
  => => exporting layers                                                                             0.0s
  => => writing image sha256:1724e6088b9a909ee18de60c50833dbb131412f1abef257a4cca01fcf9a9c71f        0.0s
  => => naming to docker.io/library/my-image:v2   
+```
+컨테이너를 실행할 때, docker run 명령어의 -p 옵션을 이용하여 포트매핑을 시도할 수 있습니다.
+docker run -p [호스트 포트번호]:[컨테이너 포트번호] [이미지]
+```
 howdy@gwonminhyeog-ui-MacBookPro my-custom-image % docker run --name my-container -p 8080:80 my-image:v2
 ```
-my-image:v2 로 실행시킨 컨테이너는 Nginx를 포그라운드 프로세스로 작동시키고, 미리 만들어두었던 welcome.txt 파일을 Nginx 의 문서루트로 복사하는 기능이 있었습니다. \
-nginx 때문에 터미널 창을 사용할 수 없으므로 새로운 터미널을 열어, curl 명령어를 통해 포트매핑이 정상적으로 진행되었음을 확인할 수 있었습니다. 
+
+일반적으로 컨테이너는 독립된 네트워크 환경을 가지므로 외부에서 직접 컨테이너 내부에 접근할 수 없지만, 포트 매핑을 통해 컨테이너 내부의 Nginx 가 제공하는 파일에 접근이 가능함을 확인할 수 있습니다.
 ```
 howdy@gwonminhyeog-ui-MacBookPro ~ % curl localhost:8080
 hello, everyone.
 ```
 
-[트러블 슈팅 #1. 컨테이너의 종료 시점 문제]\
+[트러블 슈팅 #2. 컨테이너의 종료 시점 문제]\
 (문제): 정상적인 명령어로 포트매핑을 시도했음에도, localhost:8080 으로 접속이 되지 않음.\
 (원인 가설): 기존 Dockerfile 의 CMD 명령어가 cat 명령어로 설정되어 있었기 때문에, 컨테이너가 실행되자마자 cat 명령어가 실행되고 종료되어 버렸을 가능성이 있음.\
 (확인): docker run 명령어를 실행한 직후 ps 명령어로 컨테이너의 상태를 확인해 보았을 때, 실행중인 컨테이너가 확인되지 않음.\
 (해결): CMD 명령어를 nginx 가 포그라운드 프로세스로 유지될 수 있도록 수정해 주었음. 이후 컨테이너를 재실행하였을 때, localhost:8080 으로 접속이 가능해졌음.
 
-
-
+[트러블 슈팅 #3. 이미 사용중인 호스트 포트를 다른 컨테이너 포트에 연결하기]
+(문제): second-container 에 호스트 포트 8080을 연결했지만 에러가 남.
+```
+howdy@gwonminhyeog-ui-MacBookPro my-custom-image % docker run -d -it --name second-container -p 8080:80 my-image:v2 
+231bd7a083af0220d8c1febbb87e9d72fa37e16722227c9e0d75d5177d7853e3
+docker: Error response from daemon: failed to set up container networking: driver failed programming external connectivity on endpoint second-container (6b93113ce51824a2f8937e2a99f713a80e9973575f4b378cbe02e99e0cc0d6cb): Bind for 0.0.0.0:8080 failed: port is already allocated
+```
+(원인 가설): 다른 컨테이너가 이미 호스트의 8080 포트를 점유중\
+(확인): lsof -i 명령어를 사용히야 특정 포트를 점유중인 프로세스 확인
+```
+howdy@gwonminhyeog-ui-MacBookPro my-custom-image % lsof -i :8080
+COMMAND    PID  USER   FD   TYPE             DEVICE SIZE/OFF NODE NAME
+OrbStack  1626 howdy   95u  IPv4 0x8a2ee9c043ad79cb      0t0  TCP *:http-alt (LISTEN)
+OrbStack  1626 howdy   96u  IPv6 0xf194e62d780a9269      0t0  TCP *:http-alt (LISTEN)
+```
+(해결): 기존에 8080 포트를 점유중이던 컨테이너를 종료하고 새로 연결함.
+```
+howdy@gwonminhyeog-ui-MacBookPro my-custom-image % docker stop first-container 
+first-container
+howdy@gwonminhyeog-ui-MacBookPro my-custom-image % docker rm first-container
+first-container
+howdy@gwonminhyeog-ui-MacBookPro my-custom-image % docker run -d -it --name second-container -p 8080:80 my-image:v2 
+76e03fb4a3c3f99b3f3585b3f321b4003bb27026bf3e8d8fba58ee2986de1582
+```
 ### 4-4. 바인드 마운트 반영, 볼륨 영속성 검증
+볼륨과 마운트
+- 볼륨: 도커가 컨테이너의 데이터를 보존하기 위해 자체적으로 관리하는 디렉터리 또는 파일. 
+- 바인드 마운트: 호스트의 파일 시스템 경로를 컨테이너 내부에 연결하는 기술
+
 호스트의 bind 디렉토리를 컨테이너 내부의 data 디렉토리와 바인드 마운트 한 뒤, 호스트의 bind 디렉토리에 hello.txt 파일을 만들고, 컨테이너 내부의 data 디렉토리에서 해당 파일이 존재하는지 확인해 보았습니다.
 1. 바인드 마운트 반영
 ```
@@ -568,3 +608,14 @@ howdy@gwonminhyeog-ui-MacBookPro git-project % git remote -v
 origin	https://github.com/howdy27/git-project.git (fetch)
 origin	https://github.com/howdy27/git-project.git (push)
 ```
+
+절대경로와 상대경로 선택
+- 절대경로: 파일 시스템의 루트에서부터 해당 위치까지의 경로.
+- 상대경로: 현재 위치에서 해당 위치까지의 상대적인 경로.
+
+이식성을 위해 프로젝트 내부 자원끼리는 상대경로를 사용하고, 시스템 공용 설정 파일들은 절대경로를 사용하는 것이 좋음.
+
+파일 권한 숫자 표기
+- 읽기/쓰기/실행 권한에는 각각 4/2/1 이라는 값이 부여되어 있음.
+- 소유자/그룹/기타사용자 의 권한을 표기할 때 그 값들을 모두 더해 표기할 수 있음.
+- 예를 들어 rw-r--r-- 는 644 라고 표기하는 식.
